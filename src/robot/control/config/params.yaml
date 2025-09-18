@@ -1,3 +1,5 @@
-# control_node:
-#   ros__parameters:
-    
+control_node:
+  ros__parameters:
+    lookahead_distance: 1.5   # meters
+    goal_tolerance: 0.3       # meters
+    linear_speed: 0.6         # m/s

@@ -2,15 +2,14 @@
 #define CONTROL_NODE_HPP_
 
 #include "rclcpp/rclcpp.hpp"
-
 #include "control_core.hpp"
 
 class ControlNode : public rclcpp::Node {
-  public:
-    ControlNode();
+public:
+  ControlNode();
 
-  private:
-    robot::ControlCore control_;
+private:
+  robot::ControlCore control_;
 };
 
 #endif
