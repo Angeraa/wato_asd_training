@@ -97,7 +97,7 @@ void ControlCore::controlLoop() {
 
 // Finds the lookahead point on the path for the robot to follow
 std::optional<geometry_msgs::msg::PoseStamped> ControlCore::findLookaheadPoint() {
-  if (!current_path_) return std::nullopt;  /
+  if (!current_path_) return std::nullopt;
   if (current_path_->poses.empty()) return std::nullopt; 
 
   auto robot_pos = robot_odom_->pose.pose.position;

@@ -12,27 +12,32 @@ class MapMemoryNode : public rclcpp::Node {
     MapMemoryNode();
 
   private:
+    // Callbacks
     void costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+
+    // Helpers
     void updateMap();
     void integrateCostmapIntoMap();
 
 
     robot::MapMemoryCore map_memory_;
 
+    // Parameters
     nav_msgs::msg::OccupancyGrid global_map_;
     double last_x, last_y;
-    const double distance_threshold;
-    bool costmap_updated_ = false;
-    int size_m_;
+    double distance_threshold_;
+    double size_m_;
     double resolution_;
     int width_, height_;
 
     nav_msgs::msg::OccupancyGrid latest_costmap_;
     bool should_update_map_ = false;
+    bool costmap_updated_ = false;
     
     nav_msgs::msg::Odometry::SharedPtr current_odom_;
 
+    // ROS interfaces
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_sub_;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_pub_;
