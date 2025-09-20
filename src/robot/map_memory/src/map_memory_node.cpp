@@ -39,12 +39,14 @@ MapMemoryNode::MapMemoryNode() : Node("map_memory"), map_memory_(robot::MapMemor
 }
 
 void MapMemoryNode::costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
-  latest_costmap_ = *msg;
+  std::lock_guard<std::mutex> lock(costmap_mutex_);
+  latest_costmap_ = msg;
   costmap_updated_ = true;
 }
 
 void MapMemoryNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-  current_odom_ = msg;
+  std::lock_guard<std::mutex> lock(odom_mutex_);
+  latest_odom_ = msg;
   
   double x = msg->pose.pose.position.x;
   double y = msg->pose.pose.position.y;
@@ -68,31 +70,46 @@ void MapMemoryNode::updateMap() {
 }
 
 void MapMemoryNode::integrateCostmapIntoMap() {
-  if (!costmap_updated_ || !current_odom_) {
-    RCLCPP_WARN_ONCE(this->get_logger(), "Waiting for costmap and odometry data...");
+  nav_msgs::msg::OccupancyGrid::SharedPtr current_costmap;
+  nav_msgs::msg::Odometry::SharedPtr current_odom;
+
+  {
+    std::lock_guard<std::mutex> lock(costmap_mutex_);
+    if (!latest_costmap_) return;
+    current_costmap = latest_costmap_;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(odom_mutex_);
+    if (!latest_odom_) return;
+    current_odom = latest_odom_;
+  }
+
+  if (!costmap_updated_ || !current_costmap || !current_odom) {
+    RCLCPP_WARN_ONCE(this->get_logger(), "Waiting for costmap or odom data...");
     return;
   }
 
   // Get robot pose from odometry
-  double robot_x = current_odom_->pose.pose.position.x;
-  double robot_y = current_odom_->pose.pose.position.y;
-  auto& q = current_odom_->pose.pose.orientation;
+  double robot_x = current_odom->pose.pose.position.x;
+  double robot_y = current_odom->pose.pose.position.y;
+  auto& q = current_odom->pose.pose.orientation;
   double yaw = atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
 
   // Costmap origin in robot frame
-  double costmap_origin_x = latest_costmap_.info.origin.position.x;
-  double costmap_origin_y = latest_costmap_.info.origin.position.y;
+  double costmap_origin_x = current_costmap->info.origin.position.x;
+  double costmap_origin_y = current_costmap->info.origin.position.y;
 
   // Global map origin
   double global_origin_x = global_map_.info.origin.position.x;
   double global_origin_y = global_map_.info.origin.position.y;
   
   // Integrate costmap into global map
-  for (int local_y = 0; local_y < static_cast<int>(latest_costmap_.info.height); ++local_y) {
-    for (int local_x = 0; local_x < static_cast<int>(latest_costmap_.info.width); ++local_x) {
+  for (int local_y = 0; local_y < static_cast<int>(current_costmap->info.height); ++local_y) {
+    for (int local_x = 0; local_x < static_cast<int>(current_costmap->info.width); ++local_x) {
       
-      double cell_x_robot = local_x * latest_costmap_.info.resolution + costmap_origin_x;
-      double cell_y_robot = local_y * latest_costmap_.info.resolution + costmap_origin_y;
+      double cell_x_robot = local_x * current_costmap->info.resolution + costmap_origin_x;
+      double cell_y_robot = local_y * current_costmap->info.resolution + costmap_origin_y;
       
       double cell_x_map = robot_x + (cell_x_robot * cos(yaw) - cell_y_robot * sin(yaw));
       double cell_y_map = robot_y + (cell_x_robot * sin(yaw) + cell_y_robot * cos(yaw));
@@ -105,8 +122,8 @@ void MapMemoryNode::integrateCostmapIntoMap() {
       int global_y = static_cast<int>(std::round(exact_y));
 
       // Calculate the local index and costmap value
-      int local_index = local_y * latest_costmap_.info.width + local_x;
-      int8_t costmap_value = latest_costmap_.data[local_index];
+      int local_index = local_y * current_costmap->info.width + local_x;
+      int8_t costmap_value = current_costmap->data[local_index];
       
       // Only process valid costmap values
       if (costmap_value != -1) {

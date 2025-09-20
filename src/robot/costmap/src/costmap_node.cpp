@@ -72,6 +72,8 @@ void CostmapNode::publishCostmap() {
     if (!last_scan_) return;
     current_scan = last_scan_;
   }
+
+  if (!current_scan) return;
   
   RCLCPP_DEBUG(this->get_logger(), "Publishing costmap");
 
